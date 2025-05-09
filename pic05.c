@@ -52,7 +52,7 @@ void pwm6_init(void)
     PWM6DCL = 0;
 
     PR2 = 0xFF;                 // ????
-    T2CONbits.T2CKPS = 0b01;    // ?????? 1:4
+    T2CONbits.T2CKPS = 0b000;    // ?????? 1:1
     PIR4bits.TMR2IF = 0;        // ??????
     T2CONbits.TMR2ON = 1;       // Timer2??
 
@@ -81,11 +81,11 @@ void main(void)
     while (1) {
         for (uint16_t i = 0; i < 1024; i++) {
             pwm6_set_duty(i);
-            __delay_ms(2);
+            __delay_ms(20);
         }
         for (int16_t i = 1023; i >= 0; i--) {
             pwm6_set_duty(i);
-            __delay_ms(2);
+            __delay_ms(20);
         }
 //        LATCbits.LATC5 = 1;
 //        __delay_ms(500);
