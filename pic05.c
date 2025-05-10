@@ -17,7 +17,7 @@
 #pragma config BOREN = ON       // Brown-out reset enable bits (Brown-out Reset Enabled, SBOREN bit is ignored)
 #pragma config BORV = LO        // Brown-out Reset Voltage Selection (Brown-out Reset Voltage (VBOR) set to 1.9V on LF, and 2.45V on F Devices)
 #pragma config ZCD = OFF        // Zero-cross detect disable (Zero-cross detect circuit is disabled at POR.)
-#pragma config PPS1WAY = ON     // Peripheral Pin Select one-way control (The PPSLOCK bit can be cleared and set only once in software)
+#pragma config PPS1WAY = ON    // Peripheral Pin Select one-way control (The PPSLOCK bit can be set and cleared repeatedly by software)
 #pragma config STVREN = OFF     // Stack Overflow/Underflow Reset Enable bit (Stack Overflow or Underflow will not cause a reset)
 
 // CONFIG3
@@ -39,57 +39,64 @@
 // Use project enums instead of #define for ON and OFF.
 
 #include <xc.h>
+
 #include <stdint.h>
 
 #define _XTAL_FREQ 1000000 // INTERNAL OSCILLATOR Hz
 
 void pwm6_init(void)
 {
-    TRISCbits.TRISC5 = 1;       // RC5??????????
+     // PWM out pin setting
+    TRISCbits.TRISC5 = 0;       // RC5 output
+    ANSELCbits.ANSC5 = 0;       // RC5 digital
+    
+    // PPS setting (PWM6 -> RC5)
+    PPSLOCK = 0x55;             // charm
+    PPSLOCK = 0xAA;             // charm
+    PPSLOCKbits.PPSLOCKED = 0;  // PPS UNLOCKED
 
-    PWM6CONbits.PWM6POL = 0;    // ????????0?
-    PWM6DCH = 0;                // ????????
-    PWM6DCL = 0;
+    RC5PPS = 0x0E; // RC5 assign PWM6
+    __delay_us(10);
 
-    PR2 = 0xFF;                 // ????
-    T2CONbits.T2CKPS = 0b000;    // ?????? 1:1
-    PIR4bits.TMR2IF = 0;        // ??????
-    T2CONbits.TMR2ON = 1;       // Timer2??
+    PPSLOCK = 0x55;             // charm
+    PPSLOCK = 0xAA;             // charm
+    PPSLOCKbits.PPSLOCKED = 1;  // PPS LOCKED
 
-    while (!PIR4bits.TMR2IF);   // Timer2??????
+    // Timer2 setting (PWM clock)
+    PR2 = 0xF9;                 // PWM period setting MAX 255(0xFF)
+    T2CONbits.T2CKPS = 0b000;    // prescaler 1:1
+    T2CLKCONbits.CS = 0b0001;  // FOSC/4 = 1MHz / 4 = 250kHz
+    PIR4bits.TMR2IF = 0;        // clear flag
+    T2CONbits.TMR2ON = 1;       // Timer start
 
-    RC5PPS = 0x0E;              // PWM6 ? RC5 ????????????????
-    TRISCbits.TRISC5 = 0;       // RC5 ??????
+    while (!PIR4bits.TMR2IF);   // Timer2 waiting for stability
 
-    PWM6CONbits.PWM6EN = 1;     // PWM6 ???
+    // PWM6 setting
+    PWM6DCH = 0;                // duty init higher rank
+    PWM6DCL = 0;                // duty init lower rank
+    PWM6CONbits.PWM6POL = 0;    // active high
+    PWM6CONbits.PWM6EN = 1;     // PWM6 enabled
 }
+
 
 void pwm6_set_duty(uint16_t duty)
 {
     if (duty > 1023) duty = 1023;
-    PWM6DCH = duty >> 2;
-    PWM6DCL = (duty & 0x03) << 6;
+    PWM6DCH = (uint8_t)(duty >> 2);
+    PWM6DCL = (uint8_t)((duty & 0x03) << 6);
 }
 
 void main(void)
 {
-//    OSCCON1 = 0x60; // HFINTOSC with divider
-//    OSCFRQ = 0x05;  // 16 MHz?HFFRQ = 101?
     pwm6_init();
-
-//    TRISCbits.TRISC5 = 0;
     while (1) {
         for (uint16_t i = 0; i < 1024; i++) {
             pwm6_set_duty(i);
-            __delay_ms(20);
+            __delay_ms(5);
         }
         for (int16_t i = 1023; i >= 0; i--) {
-            pwm6_set_duty(i);
-            __delay_ms(20);
+            pwm6_set_duty((uint16_t)i);
+            __delay_ms(5);
         }
-//        LATCbits.LATC5 = 1;
-//        __delay_ms(500);
-//        LATCbits.LATC5 = 0;
-//        __delay_ms(500);
     }
 }
